@@ -20,16 +20,25 @@ EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 768
 
 _client = redis.Redis.from_url(REDIS_URL, decode_responses=False)
+_genai_client = None
+
+
+def _get_genai_client():
+    """Reused genai client (one connection pool, not a new one per search)."""
+    global _genai_client
+    if _genai_client is None:
+        from google import genai
+
+        _genai_client = genai.Client()
+    return _genai_client
 
 
 def _embed(texts: list[str]) -> list[list[float]]:
     """Embed texts with gemini-embedding-001 via google-genai."""
-    from google import genai
     from google.genai import types
 
     # Reduced-dim output is unnormalized; the index uses COSINE, so that's fine.
-    client = genai.Client()
-    result = client.models.embed_content(
+    result = _get_genai_client().models.embed_content(
         model=EMBEDDING_MODEL,
         contents=texts,
         config=types.EmbedContentConfig(output_dimensionality=EMBEDDING_DIM),
