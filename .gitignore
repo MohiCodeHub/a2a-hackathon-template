@@ -3,3 +3,14 @@ __pycache__/
 
 # Generated embedding cache (regenerate with cs_agent/precompute_embeddings.py)
 kb/embeddings.json
+
+# tau2-bench checkout: large external dep the harness installs editable from
+# ./tau2-bench (= ../tau2-bench relative to harness/). Cloned locally, not
+# vendored. See README "Local eval loop".
+/tau2-bench/
+
+# Harness local artifacts (also covered by harness/.gitignore)
+/harness/.venv/
+/harness/results/
+/harness/*.egg-info/
+/harness/.pytest_cache/

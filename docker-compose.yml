@@ -30,6 +30,8 @@ services:
       MODEL: ${MODEL:-gemini-3.5-flash}
       GOOGLE_GENAI_USE_VERTEXAI: ${GOOGLE_GENAI_USE_VERTEXAI:-true}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # Opt-in RAG tracing (off unless set). Logs every kb_search to stderr.
+      A2A_HACK_TRACE: ${A2A_HACK_TRACE:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 

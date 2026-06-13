@@ -125,30 +125,61 @@ Each agent gets its tools from the harness env API (not hardcoded):
 This template's `EnvApiToolset` fetches these live each turn, so tools that
 get granted mid-conversation appear automatically.
 
-## Dev loop
+## Local eval loop
 
-You run simulations locally with the harness CLI from
-[a2anet/a2a-hackathon](https://github.com/a2anet/a2a-hackathon) — clone it
-next to this repo.
+Everything lives in this one repo (see "What's where"). The **agents** run in
+Docker; the **harness** (`harness/`) runs on your host with `uv` and drives
+simulated users against them.
 
 ```bash
-# 1. Configure (model credentials etc.)
+# 0. One-time: clone tau2-bench into the repo root. The harness installs it
+#    editable from ./tau2-bench. It's gitignored, so each teammate clones
+#    their own copy (don't commit it).
+git clone https://github.com/sierra-research/tau2-bench tau2-bench
+
+# 1. Configure agent credentials (set GOOGLE_API_KEY; leave the rest as-is)
 cp .env.example .env
 
-# 2. Run your agents
+# 2. Run your agents — personal :9001, cs :9002, redis
 docker compose up --build
 
-# 3. In the harness repo, smoke-test one task (export the same
-#    GOOGLE_API_KEY first — our simulated user runs on it too)
-uv run a2a-hack smoke \
-    --personal-url http://localhost:9001 --cs-url http://localhost:9002
+# 3. Drive the benchmark from the harness, in a second terminal. Export the
+#    same GOOGLE_API_KEY — our simulated user runs on it too.
+cd harness
+uv sync                       # first time only
+export GOOGLE_API_KEY=...     # same key as .env
 
-# 4. Run the train split and browse results
-uv run a2a-hack run --personal-url http://localhost:9001 \
-    --cs-url http://localhost:9002 --tasks train --save-to results/dev --auto-resume
+# Smoke-test one task: prints both legs, every env tool call, and the reward.
+# Loud about contextId mistakes.
+uv run a2a-hack smoke --personal-url http://localhost:9001 --cs-url http://localhost:9002
+
+# Run the train split and browse results
+uv run a2a-hack run --personal-url http://localhost:9001 --cs-url http://localhost:9002 \
+    --tasks train --save-to results/dev --auto-resume
 uv run tau2 view results/dev
 
-# 5. Iterate on prompts/RAG/flow, then submit (see "Submission")
+# Iterate on prompts/RAG/flow, then submit (see "Submission")
+```
+
+### Demo: random subset
+
+Run a seeded random subset of the chosen split instead of the whole thing
+(handy for demos). Same `--seed` → same subset.
+
+```bash
+uv run a2a-hack run --personal-url http://localhost:9001 --cs-url http://localhost:9002 \
+    --tasks train --random --num-questions 5 --seed 42 --save-to results/demo
+# or put A2A_HACK_RANDOM=1 and A2A_HACK_NUM_QUESTIONS=5 in harness/.env
+```
+
+### Debug: trace RAG
+
+Set `A2A_HACK_TRACE=1` in the template `.env` (passed through to `cs-agent`) to
+log every `kb_search` — query, returned doc ids, vector scores, latency — to
+stderr:
+
+```bash
+docker compose logs -f cs-agent | grep '^\[rag\]'
 ```
 
 `smoke` prints both conversation legs (user↔personal and personal↔CS), every
@@ -161,14 +192,22 @@ improvements actually generalise.
 
 ## What's where
 
+One repo for the whole team — agents, the benchmark runner, and (once cloned)
+tau2-bench:
+
 ```
-personal_agent/  agent.py (prompt), env_toolset.py, cs_client_tool.py, main.py
-cs_agent/        agent.py (policy prompt), env_toolset.py, rag_tools.py, ingest.py, main.py
-kb/              the public knowledge base: documents/ (698 docs) + policy.md
+personal_agent/   agent.py (prompt), env_toolset.py, cs_client_tool.py, main.py  (:9001)
+cs_agent/         agent.py (policy prompt), env_toolset.py, rag_tools.py, ingest.py, main.py  (:9002)
+kb/               public knowledge base: documents/ (698 docs) + policy.md
+docker-compose.yml  personal-agent + cs-agent + redis
+harness/          the a2a-hack benchmark runner (tau2-bench based) — see harness/README.md
+tau2-bench/       (gitignored) clone here; harness installs it editable from ../tau2-bench
 ```
 
 The CS agent's `ingest.py` builds a Redis full-text + vector index at startup
-(vector search needs model credentials; BM25 works without).
+(vector search needs model credentials; BM25 works without). The harness was
+previously a separate repo (`a2anet/a2a-hackathon`); it now lives in `harness/`
+so the team coordinates through this single repo.
 
 ## Submission
 

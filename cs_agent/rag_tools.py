@@ -10,6 +10,8 @@ the Redis 8 map-style reply work regardless of redis-py version."""
 import os
 import re
 import struct
+import sys
+import time
 
 import redis
 
@@ -21,6 +23,28 @@ EMBEDDING_DIM = 768
 
 _client = redis.Redis.from_url(REDIS_URL, decode_responses=False)
 _genai_client = None
+
+# Opt-in RAG tracing: set A2A_HACK_TRACE=1 to log every kb_search to stderr
+# (visible in `docker compose logs cs-agent`). Off by default so marked runs
+# stay quiet and unaffected.
+_TRACE = os.environ.get("A2A_HACK_TRACE", "").lower() in ("1", "true", "yes", "on")
+
+
+def _trace(message: str) -> None:
+    if _TRACE:
+        print(f"[rag] {message}", file=sys.stderr, flush=True)
+
+
+def _summarize(docs: list[dict]) -> list[str]:
+    """Compact one-line view of search hits: doc_id (+ score for vector)."""
+    summary = []
+    for doc in docs:
+        doc_id = doc.get("doc_id", "?")
+        if "score" in doc:
+            summary.append(f"{doc_id}(score={doc['score']})")
+        else:
+            summary.append(doc_id)
+    return summary
 
 
 def _get_genai_client():
@@ -90,15 +114,23 @@ def kb_search_bm25(query: str, top_k: int = 5) -> list[dict]:
     """
     terms = re.findall(r"\w+", query.lower())
     if not terms:
+        _trace(f"bm25 query={query!r} -> no searchable terms, returning []")
         return []
     # OR-join: RediSearch defaults to AND, which zeroes out long queries.
     or_query = "|".join(dict.fromkeys(terms))
+    start = time.perf_counter()
     reply = _client.execute_command(
         "FT.SEARCH", KB_INDEX, or_query,
         "LIMIT", "0", str(top_k),
         "RETURN", "2", "title", "content",
     )
-    return _parse_search_reply(reply)
+    docs = _parse_search_reply(reply)
+    _trace(
+        f"bm25 query={query!r} top_k={top_k} hits={len(docs)} "
+        f"elapsed_ms={(time.perf_counter() - start) * 1000:.0f} "
+        f"docs={_summarize(docs)}"
+    )
+    return docs
 
 
 def kb_search_vector(query: str, top_k: int = 5) -> list[dict]:
@@ -115,6 +147,7 @@ def kb_search_vector(query: str, top_k: int = 5) -> list[dict]:
         Matching documents with doc_id, title, and full content; or an error
         entry telling you to fall back to kb_search_bm25.
     """
+    start = time.perf_counter()
     try:
         vector = struct.pack(f"{EMBEDDING_DIM}f", *_embed([query])[0])
         reply = _client.execute_command(
@@ -125,8 +158,19 @@ def kb_search_vector(query: str, top_k: int = 5) -> list[dict]:
             "RETURN", "3", "title", "content", "score",
             "DIALECT", "2",
         )
-        return _strip_score(_parse_search_reply(reply))
+        docs = _parse_search_reply(reply)
+        _trace(
+            f"vector query={query!r} top_k={top_k} hits={len(docs)} "
+            f"elapsed_ms={(time.perf_counter() - start) * 1000:.0f} "
+            f"docs={_summarize(docs)}"
+        )
+        return _strip_score(docs)
     except Exception as e:
+        _trace(
+            f"vector query={query!r} FAILED ({type(e).__name__}: {e}) "
+            f"elapsed_ms={(time.perf_counter() - start) * 1000:.0f} "
+            f"-> instructing fallback to bm25"
+        )
         return [
             {
                 "error": f"Vector search unavailable ({type(e).__name__}). "
