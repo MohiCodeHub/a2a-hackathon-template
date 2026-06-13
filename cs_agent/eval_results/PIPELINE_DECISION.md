@@ -1,5 +1,10 @@
 # Retrieval Pipeline Bake-off — Decision
 
+> **Status: SHIPPED.** Approach B is now the standard KB retrieval pipeline.
+> `rag_tools.kb_search_graph` is the CS agent's semantic search tool; the graph
+> is built by `cs_agent/precompute_cooccurrence.py` (train-only) and shipped as
+> `kb/cooccurrence_graph.json`. Tune via `KB_GRAPH_SEED_K` / `KB_GRAPH_NBRS`.
+
 **Verdict: pursue Approach B (co-occurrence graph expansion).** It is the only
 pipeline that improves the target metric (recall / completeness) without
 degrading ranking quality, it generalizes to the held-out test split, and it
