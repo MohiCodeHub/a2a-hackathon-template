@@ -7,6 +7,7 @@ kb_search_vector: HNSW vector search over gemini-embedding-001 embeddings
 Replies are parsed via execute_command so both the classic array reply and
 the Redis 8 map-style reply work regardless of redis-py version."""
 
+import json
 import os
 import re
 import struct
@@ -21,8 +22,18 @@ DOC_PREFIX = "doc:"
 EMBEDDING_MODEL = "gemini-embedding-001"
 EMBEDDING_DIM = 768
 
+# Co-occurrence graph for graph-expanded retrieval (Approach B, the standard
+# pipeline — see cs_agent/eval_results/PIPELINE_DECISION.md). Built offline from
+# the TRAIN split by precompute_cooccurrence.py and shipped in the image.
+COOCCURRENCE_GRAPH_PATH = os.environ.get(
+    "COOCCURRENCE_GRAPH_PATH", "/app/kb/cooccurrence_graph.json"
+)
+GRAPH_SEED_K = int(os.environ.get("KB_GRAPH_SEED_K", "3"))  # seeds whose neighbors graft in
+GRAPH_NBRS = int(os.environ.get("KB_GRAPH_NBRS", "3"))      # neighbors grafted per seed
+
 _client = redis.Redis.from_url(REDIS_URL, decode_responses=False)
 _genai_client = None
+_cooccurrence_graph = None
 
 # Opt-in RAG tracing: set A2A_HACK_TRACE=1 to log every kb_search to stderr
 # (visible in `docker compose logs cs-agent`). Off by default so marked runs
@@ -177,3 +188,65 @@ def kb_search_vector(query: str, top_k: int = 5) -> list[dict]:
                 "Use kb_search_bm25 with keywords instead."
             }
         ]
+
+
+def _get_graph() -> dict:
+    """Lazily load the co-occurrence graph (empty dict if the artifact is
+    missing, so retrieval degrades gracefully to plain vector search)."""
+    global _cooccurrence_graph
+    if _cooccurrence_graph is None:
+        try:
+            with open(COOCCURRENCE_GRAPH_PATH) as fp:
+                _cooccurrence_graph = json.load(fp)
+            _trace(f"cooccurrence graph loaded: {len(_cooccurrence_graph)} nodes")
+        except (FileNotFoundError, ValueError) as e:
+            _trace(f"cooccurrence graph unavailable ({type(e).__name__}); graph expansion off")
+            _cooccurrence_graph = {}
+    return _cooccurrence_graph
+
+
+def _fetch_doc(doc_id: str) -> dict:
+    """Title + content for a doc id (with DOC_PREFIX), straight from the hash."""
+    reply = _client.execute_command("HMGET", doc_id, "title", "content")
+    title = _decode(reply[0]) if reply and reply[0] is not None else ""
+    content = _decode(reply[1]) if reply and len(reply) > 1 and reply[1] is not None else ""
+    return {"doc_id": doc_id, "title": title, "content": content}
+
+
+def kb_search_graph(query: str, top_k: int = 5) -> list[dict]:
+    """Semantic search with co-occurrence expansion (the standard KB search).
+
+    Runs vector search, then grafts each top seed's most-co-occurring documents
+    into the result window. This surfaces the *full* set of related documents a
+    question needs (e.g. all comparable card/account products), not just the
+    single closest match — the validated win over plain vector search.
+
+    Args:
+        query: A natural-language question or description.
+        top_k: Number of documents to return.
+
+    Returns:
+        Matching documents with doc_id, title, and full content; or an error
+        entry telling you to fall back to kb_search_bm25.
+    """
+    seeds = kb_search_vector(query, top_k)
+    if seeds and "error" in seeds[0]:
+        return seeds  # propagate the fallback-to-bm25 signal unchanged
+    graph = _get_graph()
+    ranked, seen = [], set()
+    for i, hit in enumerate(seeds):
+        did = hit["doc_id"]
+        if did not in seen:
+            seen.add(did)
+            ranked.append(hit)
+        if i < GRAPH_SEED_K:
+            bare = did[len(DOC_PREFIX):] if did.startswith(DOC_PREFIX) else did
+            neighbors = sorted(graph.get(bare, {}).items(), key=lambda kv: kv[1], reverse=True)
+            for nbr, _w in neighbors[:GRAPH_NBRS]:
+                nbr_id = f"{DOC_PREFIX}{nbr}"
+                if nbr_id not in seen:
+                    seen.add(nbr_id)
+                    ranked.append(_fetch_doc(nbr_id))
+    ranked = ranked[:top_k]
+    _trace(f"graph query={query!r} top_k={top_k} hits={len(ranked)} docs={_summarize(ranked)}")
+    return ranked

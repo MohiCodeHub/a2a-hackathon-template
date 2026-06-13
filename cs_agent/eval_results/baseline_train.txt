@@ -1,0 +1,19 @@
+=== vector (n=61) ===
+  recall@k: @1=0.142  @3=0.214  @5=0.271  @10=0.382
+  hit@k:    @1=0.705  @3=0.852  @5=0.885  @10=1.0
+  MRR:      0.799
+
+=== bm25 (n=61) ===
+  recall@k: @1=0.064  @3=0.182  @5=0.197  @10=0.233
+  hit@k:    @1=0.279  @3=0.689  @5=0.738  @10=0.836
+  MRR:      0.498
+  --- 8 miss(es) @10 (no gold doc retrieved) ---
+    task_002: gold=['doc_credit_cards_credit_cards_(general)_010']... got=['doc_checking_accounts_checking_accounts_(general)_009', 'doc_credit_cards_credit_cards_(general)_023', 'doc_bank_accounts_bank_accounts_(general)_037', 'doc_bank_accounts_bank_accounts_(general)_022', 'doc_credit_cards_credit_cards_(general)_011']
+    task_006: gold=['doc_credit_cards_bronze_rewards_card_001', 'doc_credit_cards_gold_rewards_card_001', 'doc_credit_cards_platinum_rewards_card_001']... got=['doc_credit_cards_credit_cards_(general)_024', 'doc_credit_cards_credit_cards_(general)_019', 'doc_business_credit_cards_business_platinum_rewards_card_005', 'doc_credit_cards_credit_card_account_logistics_004', 'doc_bank_accounts_bank_accounts_(general)_042']
+    task_032: gold=['doc_business_credit_cards_business_bronze_rewards_card_001', 'doc_business_credit_cards_business_bronze_rewards_card_002', 'doc_business_credit_cards_business_bronze_rewards_card_010']... got=['doc_credit_cards_credit_cards_(general)_025', 'doc_credit_cards_credit_cards_(general)_021', 'doc_credit_cards_credit_cards_(general)_018', 'doc_credit_cards_credit_cards_(general)_024', 'doc_checking_accounts_checking_accounts_(general)_003']
+    task_035: gold=['doc_business_credit_cards_business_gold_rewards_card_010', 'doc_business_credit_cards_silver_zoom_card_011', 'doc_credit_cards_credit_cards_(general)_009']... got=['doc_credit_cards_credit_cards_(general)_020', 'doc_bank_accounts_bank_accounts_(general)_037', 'doc_checking_accounts_checking_accounts_(general)_009', 'doc_bank_accounts_bank_accounts_(general)_048', 'doc_credit_cards_credit_card_account_logistics_003']
+    task_044: gold=['doc_business_credit_cards_business_bronze_rewards_card_001', 'doc_business_credit_cards_business_bronze_rewards_card_002', 'doc_business_credit_cards_business_bronze_rewards_card_010']... got=['doc_credit_cards_credit_cards_(general)_025', 'doc_credit_cards_credit_cards_(general)_021', 'doc_credit_cards_credit_cards_(general)_018', 'doc_credit_cards_credit_cards_(general)_024', 'doc_checking_accounts_checking_accounts_(general)_003']
+    task_046: gold=['doc_credit_cards_credit_cards_(general)_001', 'doc_credit_cards_credit_cards_(general)_002', 'doc_credit_cards_silver_rewards_card_011']... got=['doc_bank_accounts_bank_accounts_(general)_048', 'doc_checking_accounts_checking_accounts_(general)_003', 'doc_checking_accounts_checking_accounts_(general)_009', 'doc_bank_accounts_bank_accounts_(general)_042', 'doc_credit_cards_credit_cards_(general)_023']
+    task_057: gold=['doc_credit_cards_diamond_elite_card_001', 'doc_credit_cards_platinum_rewards_card_001', 'doc_credit_cards_platinum_rewards_card_002']... got=['doc_bank_accounts_bank_accounts_(general)_037', 'doc_bank_accounts_bank_accounts_(general)_002', 'doc_bank_accounts_bank_accounts_(general)_048', 'doc_checking_accounts_checking_accounts_(general)_009', 'doc_business_credit_cards_green_rewards_card_001']
+    task_066: gold=['doc_credit_cards_credit_cards_(general)_003', 'doc_credit_cards_credit_cards_(general)_006', 'doc_credit_cards_ecocard_001']... got=['doc_credit_cards_credit_cards_(general)_021', 'doc_credit_cards_credit_cards_(general)_023', 'doc_credit_cards_credit_cards_(general)_025', 'doc_bank_accounts_bank_accounts_(general)_037', 'doc_checking_accounts_checking_accounts_(general)_003']
+

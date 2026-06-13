@@ -6,7 +6,7 @@ from pathlib import Path
 from google.adk.agents import LlmAgent
 
 from env_toolset import EnvApiToolset
-from rag_tools import kb_search_bm25, kb_search_vector
+from rag_tools import kb_search_bm25, kb_search_graph
 
 MODEL = os.environ.get("MODEL", "gemini-3.5-flash")
 POLICY_PATH = Path(os.environ.get("KB_POLICY_PATH", "/app/kb/policy.md"))
@@ -33,7 +33,9 @@ RAG_GUIDANCE = """
 You do NOT have the knowledge base inlined. Before answering policy questions
 or performing scenario-specific procedures, search the knowledge base:
 - kb_search_bm25(query): keyword search.
-- kb_search_vector(query): semantic search for natural-language questions.
+- kb_search_graph(query): semantic search for natural-language questions. Also
+  returns documents commonly needed alongside the best match (e.g. the full set
+  of comparable products), so prefer it when a request may span related docs.
 
 Search before you act; procedures, eligibility rules, internal tool names,
 and scenario-specific guidance all live in the knowledge base. If a search
@@ -46,5 +48,5 @@ root_agent = LlmAgent(
     model=MODEL,
     description=CARD_DESCRIPTION,
     instruction=POLICY_PATH.read_text() + RAG_GUIDANCE,
-    tools=[EnvApiToolset(), kb_search_bm25, kb_search_vector],
+    tools=[EnvApiToolset(), kb_search_bm25, kb_search_graph],
 )
